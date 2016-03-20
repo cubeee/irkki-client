@@ -1,0 +1,16 @@
+# Hidden files
+.*
+!.travis.yml
+
+# Temporary files
+*~
+
+# Git
+!.git*
+
+# Go
+bin/
+build/
+pkg/
+vendor/
+/irkki-client
