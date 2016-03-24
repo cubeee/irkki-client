@@ -2,6 +2,8 @@ package event
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 )
 
 const (
@@ -24,6 +26,39 @@ type Event struct {
 	User    string
 	Command string
 	Args    []string
+}
+
+func ParseEvent(raw string) (*Event, error) {
+	evt := &Event{Raw: raw}
+
+	var command string
+	var user string
+	var args []string
+
+	if raw[0] == ':' {
+		parts := strings.SplitN(raw[1:], " ", 2)
+		evt.Source = parts[0]
+		parts = strings.Split(parts[1], " ")
+		command = parts[0]
+
+		idx := 1
+		explamationMarkPos := strings.Index(evt.Source, "!")
+		if _, err := strconv.Atoi(command); err == nil {
+			user = parts[idx]
+			idx++
+		} else if explamationMarkPos != -1 {
+			user = evt.Source[0:explamationMarkPos]
+		}
+		args = parts[idx:]
+	} else {
+		parts := strings.Split(raw, " ")
+		command = parts[0]
+		args = parts[1:]
+	}
+	evt.User = user
+	evt.Command = command
+	evt.Args = args
+	return evt, nil
 }
 
 func (e Event) String() string {

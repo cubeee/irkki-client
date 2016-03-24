@@ -2,6 +2,7 @@ package irc
 
 import (
 	"bufio"
+	"errors"
 	"net"
 	"sync"
 )
@@ -19,6 +20,9 @@ type Connection struct {
 }
 
 func (c *Connection) write(line string) error {
+	if line == "" {
+		return errors.New("Writing empty lines is not permitted")
+	}
 	if _, err := c.io.WriteString(line + "\r\n"); err != nil {
 		return err
 	}

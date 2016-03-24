@@ -80,40 +80,6 @@ func (c Client) postConnect(socket net.Conn) {
 	go c.receive()
 }
 
-func (c Client) parseMessage(raw string) (*event.Event, error) {
-	evt := &event.Event{Raw: raw}
-
-	var command string
-	var args []string
-
-	if raw[0] == ':' {
-		parts := strings.SplitN(raw[1:], " ", 2)
-		source := parts[0]
-		evt.Source = source
-		if strings.Index(source, "!") == -1 {
-			// from server
-		} else {
-			// user's
-		}
-		parts = strings.Split(parts[1], " ")
-		command = parts[0]
-		args = parts[1:]
-	} else { // command
-		parts := strings.Split(raw, " ")
-		command = parts[0]
-		args = parts[1:]
-
-		if command == event.PING {
-			source := strings.Join(parts[1:], " ")
-			c.Conn.Pong(source)
-			return evt, nil
-		}
-	}
-	evt.Command = command
-	evt.Args = args
-	return evt, nil
-}
-
 func (c Client) receive() {
 	disconnectEvent := &event.Event{
 		Command: event.DISCONNECTED,
@@ -136,8 +102,12 @@ func (c Client) receive() {
 			rawMessageEvent.Raw = line
 			c.fireEvent(rawMessageEvent)
 
-			if event, err := c.parseMessage(line); err == nil {
-				c.fireEvent(event)
+			if evt, err := event.ParseEvent(line); err == nil {
+				if evt.Command == event.PING {
+					source := strings.Join(evt.Args[1:], " ")
+					c.Conn.Pong(source)
+				}
+				c.fireEvent(evt)
 			} else {
 				log.Panicln("shit cant parse ", line)
 			}
@@ -150,7 +120,7 @@ func (c Client) send() {
 		select {
 		case line := <-c.Conn.out:
 			if err := c.Conn.write(line); err != nil {
-				log.Panicln("Failed to send!!!")
+				log.Panicln("Failed to send!")
 				return
 			}
 		}
