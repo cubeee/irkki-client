@@ -14,3 +14,7 @@ build/
 pkg/
 vendor/
 /irkki-client
+
+# Test coverage
+profile.out
+acc.out
