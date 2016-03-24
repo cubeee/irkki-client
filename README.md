@@ -1,6 +1,6 @@
 # irkki-client
 
-[![Travis Build status][travis-build-status-img]][travis-build-status] [![Drone Build status][drone-build-status-img]][drone-build-status] [![Coverage Status][coveralls-badge-img]][coveralls-url]
+[![Travis Build status][travis-build-status-img]][travis-build-status] [![Coverage Status][coveralls-badge-img]][coveralls-url]
 
 Irkki-client is a ridiculously named IRC client library written in go.
 This library was developed primarily to be the underlaying IRC layer for a bouncer.
@@ -42,7 +42,5 @@ ___This is still heavily under development and should not be used in production!
 
 [travis-build-status-img]: https://travis-ci.org/cubeee/irkki-client.svg
 [travis-build-status]: https://travis-ci.org/cubeee/irkki-client
-[drone-build-status-img]: https://drone.io/github.com/cubeee/irkki-client/status.png
-[drone-build-status]: https://drone.io/github.com/cubeee/irkki-client/latest
 [coveralls-badge-img]: https://coveralls.io/repos/github/cubeee/irkki-client/badge.svg?branch=master
 [coveralls-url]: https://coveralls.io/github/cubeee/irkki-client?branch=master

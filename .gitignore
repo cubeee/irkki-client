@@ -13,7 +13,6 @@ bin/
 build/
 pkg/
 vendor/
-/irkki-client
 
 # Test coverage
 profile.out
