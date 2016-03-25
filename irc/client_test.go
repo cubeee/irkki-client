@@ -10,9 +10,8 @@ func createClient() Client {
 	cfg := *NewConfig(&User{"test", "test"})
 	client := Client{
 		Config:   cfg,
-		Handlers: new(EventHandlers),
+		Handlers: make(map[string]map[int]func(Connection, *event.Event)),
 	}
-	client.Handlers.Handlers = make(map[string][]EventHandler)
 	return client
 }
 

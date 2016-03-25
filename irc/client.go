@@ -16,31 +16,54 @@ type Client struct {
 	Conn      Connection
 	Config    Config
 	connected bool
-	Handlers  *EventHandlers
+	Handlers  map[string]map[int]func(Connection, *event.Event)
 }
 
-type EventHandler func(Connection, *event.Event)
+type EventHandler struct {
+	id int64
+	fn func(Connection, *event.Event)
+}
 
 type EventHandlers struct {
+	id int64
 	Handlers map[string][]EventHandler
 	sync.RWMutex
 }
 
-func (c Client) HandleEvent(event string, handler EventHandler) {
-	c.Handlers.Lock()
-	c.Handlers.Handlers[event] = append(c.Handlers.Handlers[event], handler)
-	c.Handlers.Unlock()
+func (c Client) HandleEvent(evt string, fn func(Connection, *event.Event)) int {
+	evt = strings.ToUpper(evt)
+	id := 0
+	if _, ok := c.Handlers[evt]; !ok {
+		c.Handlers[evt] = make(map[int]func(Connection, *event.Event))
+		id = 0
+	} else {
+		id = len(c.Handlers[evt])
+	}
+	c.Handlers[evt][id] = fn
+	return id
+}
+
+func (c Client) RemoveEventHandler(evt string, id int) bool {
+	evt = strings.ToUpper(evt)
+	if e, ok := c.Handlers[evt];  ok {
+		if _, ok := e[id]; ok {
+			delete(c.Handlers[evt], id)
+			return true
+		}
+		return false
+	}
+	return false
 }
 
 func (c Client) fireEvent(evt *event.Event) {
 	if evt.Command != event.RAW_MESSAGE {
 		fmt.Println(evt)
 	}
-	c.Handlers.RLock()
-	defer c.Handlers.RUnlock()
-	handlers, _ := c.Handlers.Handlers[evt.Command]
-	for _, handler := range handlers {
-		handler(c.Conn, evt)
+	command := strings.ToUpper(evt.Command)
+	if handlers, ok :=  c.Handlers[command]; ok {
+		for _, handler := range handlers {
+			handler(c.Conn, evt)
+		}
 	}
 }
 

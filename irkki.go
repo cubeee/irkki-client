@@ -2,13 +2,13 @@ package irkki
 
 import (
 	"github.com/cubeee/irkki-client/irc"
+	"github.com/cubeee/irkki-client/event"
 )
 
 func NewClient(cfg irc.Config) irc.Client {
 	client := irc.Client{
 		Config:   cfg,
-		Handlers: new(irc.EventHandlers),
+		Handlers: make(map[string]map[int]func(irc.Connection, *event.Event)),
 	}
-	client.Handlers.Handlers = make(map[string][]irc.EventHandler)
 	return client
 }
