@@ -10,7 +10,7 @@ func createClient() Client {
 	cfg := *NewConfig(&User{"test", "test"})
 	client := Client{
 		Config:   cfg,
-		Handlers: new(CommandHandlers),
+		Handlers: new(EventHandlers),
 	}
 	client.Handlers.Handlers = make(map[string][]EventHandler)
 	return client
@@ -20,7 +20,7 @@ func TestClientEventHandler(t *testing.T) {
 	done := make(chan bool)
 
 	client := createClient()
-	client.HandleCommand(event.CONNECTED, func(conn Connection, event *event.Event) {
+	client.HandleEvent(event.CONNECTED, func(conn Connection, event *event.Event) {
 		<-done
 	})
 	select {

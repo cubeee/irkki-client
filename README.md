@@ -31,7 +31,7 @@ ___This is still heavily under development and should not be used in production!
         cfg.Timeout = 60 * time.Second
 
         client := irkki.NewClient(cfg)
-        client.HandleCommand(event.CONNECTED, func(conn irc.Connection, event *event.Event) {
+        client.HandleEvent(event.CONNECTED, func(conn irc.Connection, event *event.Event) {
             conn.Join("#channel")
         })
         err := client.Connect()

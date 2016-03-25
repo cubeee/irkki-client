@@ -16,17 +16,17 @@ type Client struct {
 	Conn      Connection
 	Config    Config
 	connected bool
-	Handlers  *CommandHandlers
+	Handlers  *EventHandlers
 }
 
 type EventHandler func(Connection, *event.Event)
 
-type CommandHandlers struct {
+type EventHandlers struct {
 	Handlers map[string][]EventHandler
 	sync.RWMutex
 }
 
-func (c Client) HandleCommand(event string, handler EventHandler) {
+func (c Client) HandleEvent(event string, handler EventHandler) {
 	c.Handlers.Lock()
 	c.Handlers.Handlers[event] = append(c.Handlers.Handlers[event], handler)
 	c.Handlers.Unlock()
