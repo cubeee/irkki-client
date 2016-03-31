@@ -3,6 +3,7 @@ package irc
 import (
 	"bufio"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"github.com/cubeee/irkki-client/event"
 	"github.com/cubeee/irkki-client/log"
@@ -13,10 +14,9 @@ import (
 )
 
 type Client struct {
-	Conn      Connection
-	Config    Config
-	connected bool
-	Handlers  map[string]map[int]func(Connection, *event.Event)
+	Conn     Connection
+	Config   Config
+	Handlers map[string]map[int]func(Connection, *event.Event)
 }
 
 type EventHandler struct {
@@ -25,7 +25,7 @@ type EventHandler struct {
 }
 
 type EventHandlers struct {
-	id int64
+	id       int64
 	Handlers map[string][]EventHandler
 	sync.RWMutex
 }
@@ -45,7 +45,7 @@ func (c Client) HandleEvent(evt string, fn func(Connection, *event.Event)) int {
 
 func (c Client) RemoveEventHandler(evt string, id int) bool {
 	evt = strings.ToUpper(evt)
-	if e, ok := c.Handlers[evt];  ok {
+	if e, ok := c.Handlers[evt]; ok {
 		if _, ok := e[id]; ok {
 			delete(c.Handlers[evt], id)
 			return true
@@ -60,7 +60,7 @@ func (c Client) fireEvent(evt *event.Event) {
 		fmt.Println(evt)
 	}
 	command := strings.ToUpper(evt.Command)
-	if handlers, ok :=  c.Handlers[command]; ok {
+	if handlers, ok := c.Handlers[command]; ok {
 		for _, handler := range handlers {
 			handler(c.Conn, evt)
 		}
@@ -69,9 +69,20 @@ func (c Client) fireEvent(evt *event.Event) {
 
 func (c Client) Connect() error {
 	connection := *NewConnection(c.Config)
+	connection.mutex.Lock()
+	defer connection.mutex.Unlock()
 	c.Conn = connection
 
-	server := net.JoinHostPort(c.Config.Server, strconv.Itoa(c.Config.Port))
+	if c.Config.Server == "" {
+		return errors.New("Empty server address given")
+	}
+
+	port := c.Config.Port
+	if port < 1 || port > 65535 {
+		return errors.New(fmt.Sprintf("Invalid port given, 1-65535 expected, got '%v'", port))
+	}
+
+	server := net.JoinHostPort(c.Config.Server, strconv.Itoa(port))
 	log.Println("Connecting to", server)
 	// todo: check server address
 	// todo: proxy
@@ -83,6 +94,7 @@ func (c Client) Connect() error {
 			c.Conn.socket = tls.Client(c.Conn.socket, c.Config.SSLConfig)
 		}
 		c.postConnect(socket)
+		c.Conn.connected = true
 
 		if c.Config.Password != "" {
 			c.Conn.Pass(c.Config.Password)
@@ -94,23 +106,41 @@ func (c Client) Connect() error {
 	return nil
 }
 
+func (c Client) Disconnect() error {
+	c.Conn.mutex.Lock()
+	defer c.Conn.mutex.Unlock()
+	if c.Conn.socket == nil {
+		c.Conn.connected = false
+		return nil
+	}
+	c.Conn.connected = false
+	return c.Conn.socket.Close()
+}
+
+func (c Client) Connected() bool {
+	c.Conn.mutex.RLock()
+	defer c.Conn.mutex.RUnlock()
+	return c.Conn.connected
+}
+
 func (c Client) postConnect(socket net.Conn) {
 	c.Conn.io = bufio.NewReadWriter(
 		bufio.NewReader(socket),
 		bufio.NewWriter(socket))
-	c.connected = true
-	go c.send()
-	go c.receive()
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go c.send(wg)
+	go c.receive(wg)
 }
 
-func (c Client) receive() {
+func (c Client) receive(wg sync.WaitGroup) {
 	disconnectEvent := &event.Event{
 		Command: event.DISCONNECTED,
 	}
 	rawMessageEvent := &event.Event{
 		Command: event.RAW_MESSAGE,
 	}
-	for c.connected {
+	for {
 		// todo: read timeout, socket.SetReadDeadline
 		if line, err := c.Conn.io.ReadString('\n'); err != nil {
 			disconnectEvent.Source = c.Config.Server
@@ -120,6 +150,7 @@ func (c Client) receive() {
 			// at least put some threshold here rofl
 			// log.Println("Lost connection, reconnecting...")
 			// c.Connect()
+			wg.Done()
 		} else {
 			line = strings.Trim(line, "\r\n")
 			rawMessageEvent.Raw = line
@@ -138,13 +169,15 @@ func (c Client) receive() {
 	}
 }
 
-func (c Client) send() {
+func (c Client) send(wg sync.WaitGroup) {
 	for {
 		select {
 		case line := <-c.Conn.out:
 			if err := c.Conn.write(line); err != nil {
-				log.Panicln("Failed to send!")
-				return
+				log.Panicln("Failed to send!", err)
+				wg.Done()
+				// kill conn
+				break
 			}
 		}
 	}
