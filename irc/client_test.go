@@ -1,9 +1,9 @@
 package irc
 
 import (
+	"bufio"
 	"fmt"
 	"github.com/cubeee/irkki-client/event"
-	"github.com/cubeee/irkki-client/log"
 	"net"
 	"strconv"
 	"strings"
@@ -16,9 +16,11 @@ type MockServer struct {
 	listener net.Listener
 	idx      int
 	text     []string
+	quit     chan bool
+	conns    []net.Conn
 }
 
-func createServer() MockServer {
+func createServer() *MockServer {
 	text := []string{
 		":irc.mockserver.com NOTICE * :*** Looking up your hostname...",
 		":irc.mockserver.com NOTICE * :*** Checking Ident",
@@ -31,49 +33,74 @@ func createServer() MockServer {
 		":irc.mockserver.com 251 nickname :There are 0 users and 0 invisible on 1 servers",
 		":irc.mockserver.com 252 nickname 0 :IRC Operators online",
 	}
-	return MockServer{
-		text: text,
+	return &MockServer{
+		text:  text,
+		quit:  make(chan bool),
+		conns: make([]net.Conn, 0, 10),
 	}
 }
 
-func (s MockServer) Listen(port int, read bool) error {
+func (s *MockServer) Listen(port int, read bool, test string) error {
+	defer func() {
+		for _, conn := range s.conns {
+			if conn != nil {
+				conn.Close()
+			}
+		}
+	}()
+
 	listener, err := net.Listen("tcp", "localhost:"+strconv.Itoa(port))
 	if err != nil {
 		return err
 	}
-	defer listener.Close()
-
 	s.listener = listener
+	defer func() {
+		listener.Close()
+	}()
+
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			fmt.Printf("accept failed bruh: %s\n", err.Error())
-			s.Close()
-			break
+			fmt.Println(err.Error())
+			select {
+			case <-s.quit:
+				return nil
+			default:
+			}
+			continue
 		}
+		s.conns = append(s.conns, conn)
 		if read {
-			s.handleRequest(conn)
+			go s.handleRequest(conn, test, len(s.conns)-1)
 		}
 	}
-	return nil
 }
 
-func (s MockServer) handleRequest(conn net.Conn) {
-	buf := make([]byte, 1024)
-	_, err := conn.Read(buf)
-	if err != nil {
-		log.Println("cant read shit", err.Error())
-	}
-	log.Println(s.idx, string(buf))
-
-	s.idx = s.idx + 1
+func (s *MockServer) Close() {
+	close(s.quit)
+	s.listener.Close()
 }
 
-func (s MockServer) Close() error {
-	if s.listener == nil {
-		return nil
+func (s *MockServer) handleRequest(conn net.Conn, test string, id int) {
+	defer func() {
+		conn.Close()
+		s.conns[id] = nil
+	}()
+
+	reader := bufio.NewReader(conn)
+	for {
+		_, err := reader.ReadString('\n')
+		if err != nil {
+			conn.Close()
+			return
+		}
+		if s.idx == 0 {
+			for i := 0; i < len(s.text); i++ {
+				conn.Write([]byte(s.text[i]))
+			}
+		}
+		s.idx = s.idx + 1
 	}
-	return s.listener.Close()
 }
 
 func createClient() Client {
@@ -178,30 +205,7 @@ func TestClientConnectEmptyServerAddress(t *testing.T) {
 	}
 }
 
-func TestClientConnectValidPort(t *testing.T) {
-	server := createServer()
-	go server.Listen(6667, true)
-
-	client := createClient()
-	client.Config.Server = "localhost"
-
-	ports := []int{1, 65535}
-	for _, port := range ports {
-		client.Config.Port = port
-		if err := client.Connect(); err != nil {
-			if strings.Index(err.Error(), "connection refused") == -1 {
-				t.Errorf("Client didn't accept valid port %v or returned another error: %s", port, err.Error())
-			}
-		}
-		client.Disconnect()
-	}
-	server.Close()
-}
-
 func TestClientConnectInvalidPort(t *testing.T) {
-	server := createServer()
-	go server.Listen(6667, true)
-
 	client := createClient()
 	client.Config.Server = "localhost"
 	client.Config.Port = 6667
@@ -215,5 +219,4 @@ func TestClientConnectInvalidPort(t *testing.T) {
 			}
 		}
 	}
-	server.Close()
 }

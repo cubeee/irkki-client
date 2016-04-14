@@ -30,7 +30,7 @@ type EventHandlers struct {
 	sync.RWMutex
 }
 
-func (c Client) HandleEvent(evt string, fn func(Connection, *event.Event)) int {
+func (c *Client) HandleEvent(evt string, fn func(Connection, *event.Event)) int {
 	evt = strings.ToUpper(evt)
 	id := 0
 	if _, ok := c.Handlers[evt]; !ok {
@@ -43,7 +43,7 @@ func (c Client) HandleEvent(evt string, fn func(Connection, *event.Event)) int {
 	return id
 }
 
-func (c Client) RemoveEventHandler(evt string, id int) bool {
+func (c *Client) RemoveEventHandler(evt string, id int) bool {
 	evt = strings.ToUpper(evt)
 	if e, ok := c.Handlers[evt]; ok {
 		if _, ok := e[id]; ok {
@@ -55,10 +55,7 @@ func (c Client) RemoveEventHandler(evt string, id int) bool {
 	return false
 }
 
-func (c Client) fireEvent(evt *event.Event) {
-	if evt.Command != event.RAW_MESSAGE {
-		fmt.Println(evt)
-	}
+func (c *Client) fireEvent(evt *event.Event) {
 	command := strings.ToUpper(evt.Command)
 	if handlers, ok := c.Handlers[command]; ok {
 		for _, handler := range handlers {
@@ -67,7 +64,7 @@ func (c Client) fireEvent(evt *event.Event) {
 	}
 }
 
-func (c Client) Connect() error {
+func (c *Client) Connect() error {
 	connection := *NewConnection(c.Config)
 	connection.mutex.Lock()
 	defer connection.mutex.Unlock()
@@ -106,7 +103,7 @@ func (c Client) Connect() error {
 	return nil
 }
 
-func (c Client) Disconnect() error {
+func (c *Client) Disconnect() error {
 	c.Conn.mutex.Lock()
 	defer c.Conn.mutex.Unlock()
 	if c.Conn.socket == nil {
@@ -117,7 +114,7 @@ func (c Client) Disconnect() error {
 	return c.Conn.socket.Close()
 }
 
-func (c Client) Connected() bool {
+func (c *Client) Connected() bool {
 	c.Conn.mutex.RLock()
 	defer c.Conn.mutex.RUnlock()
 	return c.Conn.connected
@@ -127,19 +124,18 @@ func (c Client) postConnect(socket net.Conn) {
 	c.Conn.io = bufio.NewReadWriter(
 		bufio.NewReader(socket),
 		bufio.NewWriter(socket))
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go c.send(wg)
-	go c.receive(wg)
+	go c.send()
+	go c.receive()
 }
 
-func (c Client) receive(wg sync.WaitGroup) {
+func (c Client) receive() {
 	disconnectEvent := &event.Event{
 		Command: event.DISCONNECTED,
 	}
 	rawMessageEvent := &event.Event{
 		Command: event.RAW_MESSAGE,
 	}
+	connectSent := false
 	for {
 		// todo: read timeout, socket.SetReadDeadline
 		if line, err := c.Conn.io.ReadString('\n'); err != nil {
@@ -150,32 +146,35 @@ func (c Client) receive(wg sync.WaitGroup) {
 			// at least put some threshold here rofl
 			// log.Println("Lost connection, reconnecting...")
 			// c.Connect()
-			wg.Done()
+			connectSent = false
+			break
 		} else {
-			line = strings.Trim(line, "\r\n")
-			rawMessageEvent.Raw = line
-			c.fireEvent(rawMessageEvent)
+			line = line[0 : len(line)-2]
 
 			if evt, err := event.ParseEvent(line); err == nil {
 				if evt.Command == event.PING {
 					source := strings.Join(evt.Args[1:], " ")
 					c.Conn.Pong(source)
+				} else if evt.Command == event.CONNECTED {
+					if connectSent {
+						continue
+					}
+					connectSent = true
 				}
 				c.fireEvent(evt)
-			} else {
-				log.Panicln("shit cant parse ", line)
 			}
+			rawMessageEvent.Raw = line
+			c.fireEvent(rawMessageEvent)
 		}
 	}
 }
 
-func (c Client) send(wg sync.WaitGroup) {
+func (c Client) send() {
 	for {
 		select {
 		case line := <-c.Conn.out:
 			if err := c.Conn.write(line); err != nil {
 				log.Panicln("Failed to send!", err)
-				wg.Done()
 				// kill conn
 				break
 			}
