@@ -220,3 +220,45 @@ func TestClientConnectInvalidPort(t *testing.T) {
 		}
 	}
 }
+
+func TestClientConnect(t *testing.T) {
+	server := createServer()
+	go server.Listen(6667, true, "connect")
+
+	client := createClient()
+	client.Config.Server = "localhost"
+	client.Config.Port = 6667
+	defer client.Disconnect()
+
+	if err := client.Connect(); err != nil {
+		t.Fatalf("Client failed to connect to server: %s", err.Error())
+	}
+
+	if !client.Connected() {
+		t.Error("Client reports not being connected")
+	}
+
+}
+
+func TestClientDisconnect(t *testing.T) {
+
+	server := createServer()
+	go server.Listen(6667, true, "connect")
+
+	client := createClient()
+	client.Config.Server = "localhost"
+	client.Config.Port = 6667
+	defer client.Disconnect()
+
+	if err := client.Connect(); err != nil {
+		t.Fatalf("Client failed to connect to server: %s", err.Error())
+	}
+
+	if err := client.Disconnect(); err != nil {
+		t.Error("Failed to disconnect")
+	}
+
+	if client.Connected() {
+		t.Error("Client reports being connected after disconnecting")
+	}
+}

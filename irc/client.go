@@ -66,8 +66,6 @@ func (c *Client) fireEvent(evt *event.Event) {
 
 func (c *Client) Connect() error {
 	connection := *NewConnection(c.Config)
-	connection.mutex.Lock()
-	defer connection.mutex.Unlock()
 	c.Conn = connection
 
 	if c.Config.Server == "" {
@@ -149,7 +147,9 @@ func (c Client) receive() {
 			connectSent = false
 			break
 		} else {
-			line = line[0 : len(line)-2]
+			if line[len(line)-2] == '\r' && line[len(line)-1] == '\n' {
+				line = line[0 : len(line)-2]
+			}
 
 			if evt, err := event.ParseEvent(line); err == nil {
 				if evt.Command == event.PING {
@@ -174,9 +174,8 @@ func (c Client) send() {
 		select {
 		case line := <-c.Conn.out:
 			if err := c.Conn.write(line); err != nil {
-				log.Panicln("Failed to send!", err)
-				// kill conn
-				break
+				c.Disconnect()
+				return
 			}
 		}
 	}

@@ -23,13 +23,8 @@ func (c *Connection) write(line string) error {
 	if line == "" {
 		return errors.New("Writing empty lines is not permitted")
 	}
-	if _, err := c.io.WriteString(line + "\r\n"); err != nil {
-		return err
-	}
-	if err := c.io.Flush(); err != nil {
-		return err
-	}
-	return nil
+	c.io.WriteString(line + "\r\n")
+	return c.io.Flush()
 }
 
 func NewConnection(cfg Config) *Connection {
