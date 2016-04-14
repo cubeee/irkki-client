@@ -10,6 +10,6 @@ do
             fi
 fi
 done
-goveralls -v -service drone.io -coverprofile=acc.out $COVERALL_TOKEN
+goveralls -v -service travis-ci -coverprofile=acc.out
 rm -rf ./profile.out
 rm -rf ./acc.out
