@@ -1,15 +1,14 @@
-echo "mode: set" > acc.out
-for Dir in $(find ./* -maxdepth 10 -type d );
-do
-        if ls $Dir/*.go &> /dev/null;
-        then
-            go test -v -coverprofile=profile.out $Dir
-            if [ -f profile.out ]
-            then
-                cat profile.out | grep -v "mode: set" >> acc.out
-            fi
-fi
+#!/usr/bin/env bash
+
+set -e
+echo "" > coverage.txt
+
+for d in $(find ./* -maxdepth 10 -type d); do
+    if ls $d/*.go &> /dev/null; then
+        go test -coverprofile=profile.out -covermode=atomic $d
+        if [ -f profile.out ]; then
+            cat profile.out >> coverage.txt
+            rm profile.out
+        fi
+    fi
 done
-goveralls -v -service travis-ci -coverprofile=acc.out
-rm -rf ./profile.out
-rm -rf ./acc.out

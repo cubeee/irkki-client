@@ -15,5 +15,4 @@ pkg/
 vendor/
 
 # Test coverage
-profile.out
-acc.out
+coverage.txt
