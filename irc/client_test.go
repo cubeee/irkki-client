@@ -2,8 +2,10 @@ package irc
 
 import (
 	"bufio"
+	"crypto/tls"
 	"fmt"
 	"github.com/cubeee/irkki-client/event"
+	"github.com/cubeee/irkki-client/log"
 	"net"
 	"strconv"
 	"strings"
@@ -89,11 +91,12 @@ func (s *MockServer) handleRequest(conn net.Conn, test string, id int) {
 
 	reader := bufio.NewReader(conn)
 	for {
-		_, err := reader.ReadString('\n')
+		message, err := reader.ReadString('\n')
 		if err != nil {
 			conn.Close()
 			return
 		}
+		log.Println("-->", message)
 		if s.idx == 0 {
 			for i := 0; i < len(s.text); i++ {
 				conn.Write([]byte(s.text[i]))
@@ -103,12 +106,19 @@ func (s *MockServer) handleRequest(conn net.Conn, test string, id int) {
 	}
 }
 
-func createClient() Client {
+func createClient() *Client {
 	cfg := *NewConfig(&User{"test", "test"})
 	client := Client{
 		Config:   cfg,
 		Handlers: make(map[string]map[int]func(Connection, *event.Event)),
 	}
+	return &client
+}
+
+func createBasicConfiguredClient(server string, port int) *Client {
+	client := createClient()
+	client.Config.Server = server
+	client.Config.Port = port
 	return client
 }
 
@@ -206,9 +216,8 @@ func TestClientConnectEmptyServerAddress(t *testing.T) {
 }
 
 func TestClientConnectInvalidPort(t *testing.T) {
-	client := createClient()
-	client.Config.Server = "localhost"
-	client.Config.Port = 6667
+	client := createBasicConfiguredClient("localhost", 6667)
+	defer client.Disconnect()
 
 	ports := []int{-1, 0, 65536}
 	for _, port := range ports {
@@ -225,9 +234,7 @@ func TestClientConnect(t *testing.T) {
 	server := createServer()
 	go server.Listen(6667, true, "connect")
 
-	client := createClient()
-	client.Config.Server = "localhost"
-	client.Config.Port = 6667
+	client := createBasicConfiguredClient("localhost", 6667)
 	defer client.Disconnect()
 
 	if err := client.Connect(); err != nil {
@@ -241,13 +248,10 @@ func TestClientConnect(t *testing.T) {
 }
 
 func TestClientDisconnect(t *testing.T) {
-
 	server := createServer()
-	go server.Listen(6667, true, "connect")
+	go server.Listen(6667, true, "disconnect")
 
-	client := createClient()
-	client.Config.Server = "localhost"
-	client.Config.Port = 6667
+	client := createBasicConfiguredClient("localhost", 6667)
 	defer client.Disconnect()
 
 	if err := client.Connect(); err != nil {
@@ -261,4 +265,38 @@ func TestClientDisconnect(t *testing.T) {
 	if client.Connected() {
 		t.Error("Client reports being connected after disconnecting")
 	}
+}
+
+func TestClientNoSSLConfig(t *testing.T) {
+	server := createServer()
+	go server.Listen(6667, true, "ssl")
+
+	client := createBasicConfiguredClient("localhost", 6667)
+	client.Config.SSL = true
+	defer client.Disconnect()
+
+	if err := client.Connect(); err == nil {
+		t.Fatal("Client did not complain about missing SSL config when expected to")
+	}
+}
+
+func TestClientSSL(t *testing.T) {
+	server := createServer()
+	go server.Listen(6667, true, "ssl")
+
+	client := createBasicConfiguredClient("localhost", 6667)
+	client.Config.SSL = true
+	client.Config.SSLConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	defer client.Disconnect()
+
+	if err := client.Connect(); err != nil {
+		t.Fatalf("Client failed to connect to server: %s", err.Error())
+	}
+
+	if !client.Connected() {
+		t.Error("Client is not connected")
+	}
+
 }

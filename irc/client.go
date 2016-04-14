@@ -86,7 +86,11 @@ func (c *Client) Connect() error {
 	} else {
 		c.Conn.socket = socket
 		if c.Config.SSL {
+			if c.Config.SSLConfig == nil {
+				return errors.New("No SSLConfig set, non-nil required when using SSL")
+			}
 			c.Conn.socket = tls.Client(c.Conn.socket, c.Config.SSLConfig)
+			log.Println(c.Conn.socket)
 		}
 		c.postConnect(socket)
 		c.Conn.connected = true
