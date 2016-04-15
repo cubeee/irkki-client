@@ -3,7 +3,6 @@ package irc
 import (
 	"bufio"
 	"crypto/tls"
-	"fmt"
 	"github.com/cubeee/irkki-client/event"
 	"github.com/cubeee/irkki-client/log"
 	"net"
@@ -20,9 +19,10 @@ type MockServer struct {
 	text     []string
 	quit     chan bool
 	conns    []net.Conn
+	test     string
 }
 
-func createServer() *MockServer {
+func createServer(test string) *MockServer {
 	text := []string{
 		":irc.mockserver.com NOTICE * :*** Looking up your hostname...",
 		":irc.mockserver.com NOTICE * :*** Checking Ident",
@@ -35,14 +35,16 @@ func createServer() *MockServer {
 		":irc.mockserver.com 251 nickname :There are 0 users and 0 invisible on 1 servers",
 		":irc.mockserver.com 252 nickname 0 :IRC Operators online",
 	}
+
 	return &MockServer{
 		text:  text,
 		quit:  make(chan bool),
 		conns: make([]net.Conn, 0, 10),
+		test:  test,
 	}
 }
 
-func (s *MockServer) Listen(port int, read bool, test string) error {
+func (s *MockServer) Listen(port int, read bool, fn func(success bool, address string)) {
 	defer func() {
 		for _, conn := range s.conns {
 			if conn != nil {
@@ -51,39 +53,43 @@ func (s *MockServer) Listen(port int, read bool, test string) error {
 		}
 	}()
 
-	listener, err := net.Listen("tcp", "localhost:"+strconv.Itoa(port))
+	listener, err := net.Listen("tcp4", "0.0.0.0:"+strconv.Itoa(port))
 	if err != nil {
-		return err
+		log.Fatal(err.Error())
+		fn(false, "")
+		return
 	}
 	s.listener = listener
-	defer func() {
-		listener.Close()
-	}()
+	fn(true, listener.Addr().String())
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			fmt.Println(err.Error())
 			select {
 			case <-s.quit:
-				return nil
+				return
 			default:
 			}
 			continue
 		}
+		if conn == nil {
+			continue
+		}
 		s.conns = append(s.conns, conn)
 		if read {
-			go s.handleRequest(conn, test, len(s.conns)-1)
+			go s.handleRequest(conn, len(s.conns)-1)
 		}
 	}
 }
 
 func (s *MockServer) Close() {
 	close(s.quit)
-	s.listener.Close()
+	if s.listener != nil {
+		s.listener.Close()
+	}
 }
 
-func (s *MockServer) handleRequest(conn net.Conn, test string, id int) {
+func (s *MockServer) handleRequest(conn net.Conn, id int) {
 	defer func() {
 		conn.Close()
 		s.conns[id] = nil
@@ -96,7 +102,7 @@ func (s *MockServer) handleRequest(conn net.Conn, test string, id int) {
 			conn.Close()
 			return
 		}
-		log.Println("-->", message)
+		log.Println(s.test, "-->", message)
 		if s.idx == 0 {
 			for i := 0; i < len(s.text); i++ {
 				conn.Write([]byte(s.text[i]))
@@ -231,72 +237,122 @@ func TestClientConnectInvalidPort(t *testing.T) {
 }
 
 func TestClientConnect(t *testing.T) {
-	server := createServer()
-	go server.Listen(6667, true, "connect")
+	server := createServer("connect")
+	go server.Listen(0, true, func(success bool, address string) {
+		defer server.Close()
+		if !success {
+			t.Fatal("Failed to bind server")
+			return
+		}
 
-	client := createBasicConfiguredClient("localhost", 6667)
-	defer client.Disconnect()
+		client := createBasicConfiguredClient("localhost", 6667)
+		defer client.Disconnect()
 
-	if err := client.Connect(); err != nil {
-		t.Fatalf("Client failed to connect to server: %s", err.Error())
+		if err := client.Connect(); err != nil {
+			t.Fatalf("Client failed to connect to server: %s", err.Error())
+		}
+
+		if !client.Connected() {
+			t.Error("Client reports not being connected")
+		}
+	})
+}
+
+func TestClientConnectWithAddress(t *testing.T) {
+	cases := []struct{ Address, Error string }{
+		{"", "Address of following format required: <server>:<port>"},
+		{":", "Failed to parse a numeric port from given '', make sure to use a numeric port and the following address format: <server>:<port>"},
+		{"localhost:", "Failed to parse a numeric port from given '', make sure to use a numeric port and the following address format: <server>:<port>"},
+		{":6667", "Empty server address given"},
+		{"localhost:6667", ""},
 	}
 
-	if !client.Connected() {
-		t.Error("Client reports not being connected")
-	}
+	for _, c := range cases {
+		server := createServer("connect_with_address")
+		go server.Listen(0, true, func(success bool, address string) {
+			defer server.Close()
+			if !success {
+				t.Fatal("Failed to bind server")
+				return
+			}
 
+			client := createClient()
+			if err := client.ConnectWithAddress(c.Address); err != nil {
+				if err.Error() != c.Error {
+					t.Errorf("Testing address '%s' failed: %s", c.Address, err.Error())
+				}
+			}
+		})
+	}
 }
 
 func TestClientDisconnect(t *testing.T) {
-	server := createServer()
-	go server.Listen(6667, true, "disconnect")
+	server := createServer("disconnect")
+	go server.Listen(0, true, func(success bool, address string) {
+		defer server.Close()
+		if !success {
+			t.Fatal("Failed to bind server")
+			return
+		}
 
-	client := createBasicConfiguredClient("localhost", 6667)
-	defer client.Disconnect()
+		client := createClient()
+		defer client.Disconnect()
 
-	if err := client.Connect(); err != nil {
-		t.Fatalf("Client failed to connect to server: %s", err.Error())
-	}
+		if err := client.ConnectWithAddress(address); err != nil {
+			t.Fatalf("Client failed to connect to server: %s", err.Error())
+		}
 
-	if err := client.Disconnect(); err != nil {
-		t.Error("Failed to disconnect")
-	}
+		if err := client.Disconnect(); err != nil {
+			t.Error("Failed to disconnect")
+		}
 
-	if client.Connected() {
-		t.Error("Client reports being connected after disconnecting")
-	}
+		if client.Connected() {
+			t.Error("Client reports being connected after disconnecting")
+		}
+	})
 }
 
 func TestClientNoSSLConfig(t *testing.T) {
-	server := createServer()
-	go server.Listen(6667, true, "ssl")
+	server := createServer("no_ssl")
+	go server.Listen(0, true, func(success bool, address string) {
+		defer server.Close()
+		if !success {
+			t.Fatal("Failed to bind server")
+			return
+		}
 
-	client := createBasicConfiguredClient("localhost", 6667)
-	client.Config.SSL = true
-	defer client.Disconnect()
+		client := createClient()
+		client.Config.SSL = true
+		defer client.Disconnect()
 
-	if err := client.Connect(); err == nil {
-		t.Fatal("Client did not complain about missing SSL config when expected to")
-	}
+		if err := client.ConnectWithAddress(address); err == nil {
+			t.Fatal("Client did not complain about missing SSL config when expected to")
+		}
+	})
 }
 
 func TestClientSSL(t *testing.T) {
-	server := createServer()
-	go server.Listen(6667, true, "ssl")
+	server := createServer("ssl")
+	go server.Listen(0, true, func(success bool, address string) {
+		defer server.Close()
+		if !success {
+			t.Fatal("Failed to bind server")
+			return
+		}
 
-	client := createBasicConfiguredClient("localhost", 6667)
-	client.Config.SSL = true
-	client.Config.SSLConfig = &tls.Config{
-		InsecureSkipVerify: true,
-	}
-	defer client.Disconnect()
+		client := createClient()
+		client.Config.SSL = true
+		client.Config.SSLConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+		defer client.Disconnect()
 
-	if err := client.Connect(); err != nil {
-		t.Fatalf("Client failed to connect to server: %s", err.Error())
-	}
+		if err := client.ConnectWithAddress(address); err != nil {
+			t.Fatalf("Client failed to connect to server: %s", err.Error())
+		}
 
-	if !client.Connected() {
-		t.Error("Client is not connected")
-	}
-
+		if !client.Connected() {
+			t.Error("Client is not connected")
+		}
+	})
 }

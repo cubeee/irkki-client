@@ -64,6 +64,21 @@ func (c *Client) fireEvent(evt *event.Event) {
 	}
 }
 
+func (c *Client) ConnectWithAddress(address string) error {
+	parts := strings.Split(address, ":")
+	if len(parts) < 2 {
+		return errors.New("Address of following format required: <server>:<port>")
+	}
+	c.Config.Server = parts[0]
+	port, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return errors.New(fmt.Sprintf("Failed to parse a numeric port from given '%s', "+
+			"make sure to use a numeric port and the following address format: <server>:<port>", parts[1]))
+	}
+	c.Config.Port = port
+	return c.Connect()
+}
+
 func (c *Client) Connect() error {
 	connection := *NewConnection(c.Config)
 	c.Conn = connection
@@ -90,7 +105,6 @@ func (c *Client) Connect() error {
 				return errors.New("No SSLConfig set, non-nil required when using SSL")
 			}
 			c.Conn.socket = tls.Client(c.Conn.socket, c.Config.SSLConfig)
-			log.Println(c.Conn.socket)
 		}
 		c.postConnect(socket)
 		c.Conn.connected = true
