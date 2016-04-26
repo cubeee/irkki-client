@@ -13,12 +13,13 @@ type User struct {
 type Config struct {
 	User *User
 
-	Server    string
-	Port      int
-	Password  string
-	SSL       bool
-	SSLConfig *tls.Config
-	// todo: proxy
+	Server       string
+	Port         int
+	Password     string
+	SSL          bool
+	SSLConfig    *tls.Config
+	Proxy        bool
+	ProxyAddress string
 	// todo: ping
 	Timeout     time.Duration
 	QuitMessage string

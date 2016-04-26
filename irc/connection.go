@@ -3,6 +3,7 @@ package irc
 import (
 	"bufio"
 	"errors"
+	"golang.org/x/net/proxy"
 	"net"
 	"sync"
 )
@@ -11,10 +12,11 @@ type Connection struct {
 	mutex  sync.RWMutex
 	config *Config
 
-	dialer *net.Dialer
-	socket net.Conn
-	io     *bufio.ReadWriter
-	out    chan string
+	dialer      *net.Dialer
+	proxyDialer proxy.Dialer
+	socket      net.Conn
+	io          *bufio.ReadWriter
+	out         chan string
 
 	connected bool
 }

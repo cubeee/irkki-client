@@ -11,6 +11,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"golang.org/x/net/proxy"
+	"net/url"
 )
 
 type Client struct {
@@ -94,27 +97,46 @@ func (c *Client) Connect() error {
 
 	server := net.JoinHostPort(c.Config.Server, strconv.Itoa(port))
 	log.Println("Connecting to", server)
-	// todo: proxy
-	if socket, err := c.Conn.dialer.Dial("tcp", server); err != nil {
-		return err
-	} else {
-		c.Conn.socket = socket
-		if c.Config.SSL {
-			if c.Config.SSLConfig == nil {
-				return errors.New("No SSLConfig set, non-nil required when using SSL")
-			}
-			c.Conn.socket = tls.Client(c.Conn.socket, c.Config.SSLConfig)
-		}
-		c.postConnect(socket)
-		c.Conn.connected = true
 
-		if c.Config.Password != "" {
-			c.Conn.Pass(c.Config.Password)
+	var socket net.Conn
+	var err error
+	if c.Config.Proxy {
+		proxyURL, err := url.Parse(c.Config.ProxyAddress)
+		if err != nil {
+			return err
 		}
-		// todo: mask
-		c.Conn.User(c.Config.User.Username, 0, c.Config.User.Realname)
-		c.Conn.Nick(c.Config.User.Username)
+		c.Conn.proxyDialer, err = proxy.FromURL(proxyURL, c.Conn.dialer)
+		if err != nil {
+			return err
+		}
+		socket, err = c.Conn.proxyDialer.Dial("tcp", server)
+	} else {
+		socket, err = c.Conn.dialer.Dial("tcp", server)
 	}
+
+	if err != nil {
+		return err
+	}
+	if socket == nil {
+		return errors.New("Failed to connect to server")
+	}
+
+	c.Conn.socket = socket
+	if c.Config.SSL {
+		if c.Config.SSLConfig == nil {
+			return errors.New("No SSLConfig set, non-nil required when using SSL")
+		}
+		c.Conn.socket = tls.Client(c.Conn.socket, c.Config.SSLConfig)
+	}
+	c.postConnect(socket)
+	c.Conn.connected = true
+
+	if c.Config.Password != "" {
+		c.Conn.Pass(c.Config.Password)
+	}
+	// todo: mask
+	c.Conn.User(c.Config.User.Username, 0, c.Config.User.Realname)
+	c.Conn.Nick(c.Config.User.Username)
 	return nil
 }
 
