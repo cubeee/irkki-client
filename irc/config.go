@@ -20,9 +20,8 @@ type Config struct {
 	SSLConfig    *tls.Config
 	Proxy        bool
 	ProxyAddress string
-	// todo: ping
-	Timeout     time.Duration
-	QuitMessage string
+	Timeout      time.Duration
+	QuitMessage  string
 }
 
 func NewConfig(user *User) *Config {

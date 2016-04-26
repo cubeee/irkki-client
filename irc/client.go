@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/net/proxy"
 	"net/url"
@@ -157,7 +158,7 @@ func (c *Client) Connected() bool {
 	return c.Conn.connected
 }
 
-func (c Client) postConnect(socket net.Conn) {
+func (c *Client) postConnect(socket net.Conn) {
 	c.Conn.io = bufio.NewReadWriter(
 		bufio.NewReader(socket),
 		bufio.NewWriter(socket))
@@ -165,7 +166,7 @@ func (c Client) postConnect(socket net.Conn) {
 	go c.receive()
 }
 
-func (c Client) receive() {
+func (c *Client) receive() {
 	disconnectEvent := &event.Event{
 		Command: event.DISCONNECTED,
 	}
@@ -174,7 +175,7 @@ func (c Client) receive() {
 	}
 	connectSent := false
 	for {
-		// todo: read timeout, socket.SetReadDeadline
+		c.Conn.socket.SetReadDeadline(time.Now().Add(c.Config.Timeout))
 		if line, err := c.Conn.io.ReadString('\n'); err != nil {
 			disconnectEvent.Source = c.Config.Server
 			c.fireEvent(disconnectEvent)
@@ -210,10 +211,11 @@ func (c Client) receive() {
 	}
 }
 
-func (c Client) send() {
+func (c *Client) send() {
 	for {
 		select {
 		case line := <-c.Conn.out:
+			c.Conn.socket.SetWriteDeadline(time.Now().Add(c.Config.Timeout))
 			if err := c.Conn.write(line); err != nil {
 				c.Disconnect()
 				return
