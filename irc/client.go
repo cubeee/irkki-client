@@ -94,7 +94,6 @@ func (c *Client) Connect() error {
 
 	server := net.JoinHostPort(c.Config.Server, strconv.Itoa(port))
 	log.Println("Connecting to", server)
-	// todo: check server address
 	// todo: proxy
 	if socket, err := c.Conn.dialer.Dial("tcp", server); err != nil {
 		return err
@@ -180,9 +179,16 @@ func (c Client) receive() {
 					connectSent = true
 				}
 				c.fireEvent(evt)
+
+				if additionalEvents := event.ParseAdditionalEvents(*evt); additionalEvents != nil {
+					for idx := 0; idx < len(additionalEvents); idx++ {
+						c.fireEvent(additionalEvents[idx])
+					}
+				}
 			}
 			rawMessageEvent.Raw = line
 			c.fireEvent(rawMessageEvent)
+
 		}
 	}
 }

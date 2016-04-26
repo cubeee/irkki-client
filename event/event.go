@@ -18,6 +18,7 @@ const (
 	NICK              string = "NICK"
 	PASS              string = "PASS"
 	USER              string = "USER"
+	MESSAGE           string = "IRKKI_MESSAGE"
 )
 
 type Event struct {
@@ -59,6 +60,23 @@ func ParseEvent(raw string) (*Event, error) {
 	evt.Command = command
 	evt.Args = args
 	return evt, nil
+}
+
+func ParseAdditionalEvents(baseEvent Event) []*Event {
+	events := []*Event{}
+
+	if baseEvent.Command == "PRIVMSG" {
+		target := baseEvent.Args[0]
+		// Parse channel message from a PRIVMSG
+		if target[0] == '#' {
+			message := strings.Join(baseEvent.Args[1:], " ")[1:]
+			baseEvent.Command = MESSAGE
+			baseEvent.Args = []string{target, message}
+			events = append(events, &baseEvent)
+			return events
+		}
+	}
+	return events
 }
 
 func (e Event) String() string {
