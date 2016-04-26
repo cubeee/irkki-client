@@ -178,11 +178,6 @@ func (c Client) receive() {
 		if line, err := c.Conn.io.ReadString('\n'); err != nil {
 			disconnectEvent.Source = c.Config.Server
 			c.fireEvent(disconnectEvent)
-			// do we want to reconnect here or have events do it?
-			// maybe have a flag in config for it
-			// at least put some threshold here rofl
-			// log.Println("Lost connection, reconnecting...")
-			// c.Connect()
 			connectSent = false
 			break
 		} else {
