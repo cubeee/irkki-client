@@ -188,7 +188,7 @@ func (c *Client) receive() {
 
 			if evt, err := event.ParseEvent(line); err == nil {
 				if evt.Command == event.PING {
-					source := strings.Join(evt.Args[1:], " ")
+					source := strings.Join(evt.Args, " ")
 					c.Conn.Pong(source)
 				} else if evt.Command == event.CONNECTED {
 					if connectSent {
