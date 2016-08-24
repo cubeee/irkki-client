@@ -70,3 +70,15 @@ func TestQuit(t *testing.T) {
 		con.Quit(args[0].(string))
 	}, "bye")
 }
+
+func TestMessage(t *testing.T) {
+	testCommand(t, "PRIVMSG #test :Test", "Message", func(con *Connection, args ...interface{}) {
+		con.Message(args[0].(string), args[1].(string))
+	}, "#test", "Test")
+}
+
+func TestMessagef(t *testing.T) {
+	testCommand(t, "PRIVMSG #test :Test: Success", "Messagef", func(con *Connection, args ...interface{}) {
+		con.Messagef(args[0].(string), args[1].(string), args[2:]...)
+	}, "#test", "%s: %s", "Test", "Success")
+}
