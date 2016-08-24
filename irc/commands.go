@@ -32,3 +32,11 @@ func (c *Connection) Join(channel string) {
 func (c *Connection) Quit(message string) {
 	c.WriteRaw(event.QUIT + " :" + message)
 }
+
+func (c *Connection) Message(target, message string) {
+	c.WriteRaw(fmt.Sprintf("%s %s :%s", event.PRIVMSG, target, message))
+}
+
+func (c *Connection) Messagef(target, format string, args ...interface{}) {
+	c.WriteRaw(fmt.Sprintf("%s %s :%s", event.PRIVMSG, target, fmt.Sprintf(format, args...)))
+}

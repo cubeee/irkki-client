@@ -11,6 +11,7 @@ const (
 	ERR_NICKNAMEINUSE string = "433"
 	DISCONNECTED      string = "DISCONNECTED"
 	RAW_MESSAGE       string = "RAW_MESSAGE"
+	PRIVMSG           string = "PRIVMSG"
 	PING              string = "PING"
 	PONG              string = "PONG"
 	JOIN              string = "JOIN"
