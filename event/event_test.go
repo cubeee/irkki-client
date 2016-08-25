@@ -47,3 +47,45 @@ func TestEventParse(t *testing.T) {
 		}
 	}
 }
+
+func TestParseAdditionalEvents(t *testing.T) {
+	char_1 := string(1)
+	tests := []struct {
+		in  string
+		out event.Event
+	}{
+		{":nick!ident@host.com PRIVMSG #channel :Hello", event.Event{":nick!ident@host.com PRIVMSG #channel :Hello", "nick!ident@host.com", "nick", "IRKKI_MESSAGE", []string{"#channel", "Hello"}}},
+		{":nick!ident@host.com PRIVMSG me :" + char_1 + "ACTION Hello" + char_1, event.Event{":nick!ident@host.com PRIVMSG me :" + char_1 + "ACTION Hello" + char_1, "nick!ident@host.com", "nick", "IRKKI_ACTION", []string{"me", "Hello"}}},
+		{":nick!ident@host.com PRIVMSG me :" + char_1 + "VERSION" + char_1, event.Event{":nick!ident@host.com PRIVMSG me :" + char_1 + "VERSION" + char_1, "nick!ident@host.com", "nick", "IRKKI_CTCP_VERSION", []string{"me"}}},
+	}
+
+	for _, test := range tests {
+		evt, _ := event.ParseEvent(test.in)
+
+		if additional := event.ParseAdditionalEvents(*evt); len(additional) > 0 {
+			for _, actual := range additional {
+				expected := test.out
+				if actual.String() == "" {
+					t.Error("Got an empty String(), non-empty expected")
+				}
+				if actual.Raw != expected.Raw {
+					t.Errorf("Raw event mismatch, got '%s', expected '%s'", actual.Raw, expected.Raw)
+				}
+				if actual.Source != expected.Source {
+					t.Errorf("Source does not match, got '%s', expected '%s'", actual.Source, expected.Source)
+				}
+				if actual.User != expected.User {
+					t.Errorf("User does not match, got '%s', expected '%s'", actual.User, expected.User)
+				}
+				if actual.Command != expected.Command {
+					t.Errorf("Command does not match, got '%s', expected '%s'", actual.Command, expected.Command)
+				}
+				if !reflect.DeepEqual(actual.Args, expected.Args) {
+					t.Errorf("Args do not match, got '%s', expected '%s'", actual.Args, expected.Args)
+				}
+			}
+		} else {
+			t.Error("No additional events parsed")
+		}
+	}
+}
