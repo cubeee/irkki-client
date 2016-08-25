@@ -19,7 +19,9 @@ const (
 	NICK              string = "NICK"
 	PASS              string = "PASS"
 	USER              string = "USER"
+	ACTION            string = "IRKKI_ACTION"
 	MESSAGE           string = "IRKKI_MESSAGE"
+	CTCP_VERSION      string = "IRKKI_CTCP_VERSION"
 )
 
 type Event struct {
@@ -44,12 +46,12 @@ func ParseEvent(raw string) (*Event, error) {
 		command = parts[0]
 
 		idx := 1
-		explamationMarkPos := strings.Index(evt.Source, "!")
+		exclamationMarkPos := strings.Index(evt.Source, "!")
 		if _, err := strconv.Atoi(command); err == nil {
 			user = parts[idx]
 			idx++
-		} else if explamationMarkPos != -1 {
-			user = evt.Source[0:explamationMarkPos]
+		} else if exclamationMarkPos != -1 {
+			user = evt.Source[0:exclamationMarkPos]
 		}
 		args = parts[idx:]
 	} else {
@@ -68,9 +70,27 @@ func ParseAdditionalEvents(baseEvent Event) []*Event {
 
 	if baseEvent.Command == "PRIVMSG" {
 		target := baseEvent.Args[0]
+		message := strings.Join(baseEvent.Args[1:], " ")[1:]
+
+		if message[0] == 1 && message[len(message) - 1] == 1 {
+			message = message[1:len(message) - 1]
+			parts := strings.Split(message, " ")
+
+			if parts[0] == "ACTION" {
+				baseEvent.Command = ACTION
+				baseEvent.Args = []string{target, strings.Join(parts[1:], " ")}
+				events = append(events, &baseEvent)
+				return events
+			} else if parts[0] == "VERSION" {
+				baseEvent.Command = CTCP_VERSION
+				baseEvent.Args = []string{target}
+				events = append(events, &baseEvent)
+				return events
+			}
+		}
+
 		// Parse channel message from a PRIVMSG
 		if target[0] == '#' {
-			message := strings.Join(baseEvent.Args[1:], " ")[1:]
 			baseEvent.Command = MESSAGE
 			baseEvent.Args = []string{target, message}
 			events = append(events, &baseEvent)

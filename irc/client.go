@@ -198,7 +198,7 @@ func (c *Client) receive() {
 				}
 				c.fireEvent(evt)
 
-				if additionalEvents := event.ParseAdditionalEvents(*evt); additionalEvents != nil {
+				if additionalEvents := event.ParseAdditionalEvents(*evt); len(additionalEvents) > 0 {
 					for idx := 0; idx < len(additionalEvents); idx++ {
 						c.fireEvent(additionalEvents[idx])
 					}
