@@ -46,12 +46,12 @@ func ParseEvent(raw string) (*Event, error) {
 		command = parts[0]
 
 		idx := 1
-		explamationMarkPos := strings.Index(evt.Source, "!")
+		exclamationMarkPos := strings.Index(evt.Source, "!")
 		if _, err := strconv.Atoi(command); err == nil {
 			user = parts[idx]
 			idx++
-		} else if explamationMarkPos != -1 {
-			user = evt.Source[0:explamationMarkPos]
+		} else if exclamationMarkPos != -1 {
+			user = evt.Source[0:exclamationMarkPos]
 		}
 		args = parts[idx:]
 	} else {
