@@ -74,7 +74,6 @@ func ParseAdditionalEvents(baseEvent Event) []*Event {
 
 		if message[0] == 1 && message[len(message) - 1] == 1 {
 			message = message[1:len(message) - 1]
-
 			parts := strings.Split(message, " ")
 
 			if parts[0] == "ACTION" {
@@ -84,7 +83,7 @@ func ParseAdditionalEvents(baseEvent Event) []*Event {
 				events = append(events, &baseEvent)
 				return events
 			} else if parts[0] == "VERSION" {
-				// ACTION
+				// VERSION
 				baseEvent.Command = CTCP_VERSION
 				baseEvent.Args = []string{target}
 				events = append(events, &baseEvent)
