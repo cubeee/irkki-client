@@ -77,13 +77,11 @@ func ParseAdditionalEvents(baseEvent Event) []*Event {
 			parts := strings.Split(message, " ")
 
 			if parts[0] == "ACTION" {
-				// ACTION
 				baseEvent.Command = ACTION
 				baseEvent.Args = []string{target, strings.Join(parts[1:], " ")}
 				events = append(events, &baseEvent)
 				return events
 			} else if parts[0] == "VERSION" {
-				// VERSION
 				baseEvent.Command = CTCP_VERSION
 				baseEvent.Args = []string{target}
 				events = append(events, &baseEvent)
